@@ -1,67 +1,43 @@
 const express = require('express')
 const cors = require('cors')
 const path = require('path')
+const cookieParser = require('cookie-parser')
 const bodyParser = require('body-parser')
-let tasks = require('./data/tasks.json')
+const { getAllTasks, postTask, putTask, deleteTask } = require('./controllers/TaskController')
+const { logout, signup, login } = require('./controllers/AuthController')
+const Auth = require('./dbservice/auth')
 const port = process.env.PORT || 9999
 const app = express()
 
 app.use(cors())
+app.use(cookieParser())
 app.use(express.static(path.join(__dirname, 'public')))
 app.use(bodyParser.json())
 
+function routeProtection(req,res,next){
 
-
-
-app.get('/api/task',(req,res)=>{
     try {
-        return res.send(tasks)
+        const token = req.cookies['user-token']
+        const user = Auth.getUserByToken(token)
+        if(!user){
+            throw new Error('Access denied')
+        }
+        next()
     } catch (error) {
-        return res.send({error:error.message})
-    }
-})
-app.post('/api/task',(req,res)=>{
-    try {
-        const {text} = req.body
-        let id = tasks.length+1
-        let newTask = {id,text,isCompleted:false}
-        tasks.push(newTask)
         return res.send({
-            message:'Task submitted successfully',
-            task:newTask
+            error:error.message
         })
-    } catch (error) {
-        return res.send({error:error.message})
     }
-})
-app.put('/api/task/:id',(req,res)=>{
-    try {
-        const taskId = req.params.id
+}
 
-        let newTasks = tasks.map(task=>{
-            if(task.id == taskId){
-                return {...task,...req.body}
-            }
-        })
-        tasks = newTasks
-        return res.send({
-            message:'Task updated successfully'
-        })
-    } catch (error) {
-        return res.send({error:error.message})
-    }
-})
-app.delete('/api/task/:id',(req,res)=>{
-    try {
-        const taskId = req.params.id
-        tasks = tasks.filter(task=>task.id!=taskId)
-        return res.send({
-            message:'Task deleted successfully'
-        })
-    } catch (error) {
-        return res.send({error:error.message})
-    }
-})
+app.post('/api/auth/login',login)
+app.post('/api/auth/signup',signup)
+app.get('/api/auth/logout',logout)
+
+app.get('/api/task',routeProtection,getAllTasks)
+app.post('/api/task',routeProtection,postTask)
+app.put('/api/task/:id',routeProtection,putTask)
+app.delete('/api/task/:id',routeProtection,deleteTask)
 
 app.use('/',(req,res)=>{
     return res.sendFile(path.join(__dirname,'./public/index.html'))
